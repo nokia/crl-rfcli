@@ -1,0 +1,17 @@
+*.pyc
+*.swp
+dist/*
+.cache
+.coverage
+.idea
+.tox
+coverage.xml
+junit.xml
+src/crl.rfcli.egg-info/*
+sphinxdocs/_build
+robottests/rfcli_output/*
+rfcli_output/*
+build_dir/*
+build/*
+.venv/*
+robottests/testcases/folder1/folder3/link_to_libraries

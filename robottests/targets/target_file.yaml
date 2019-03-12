@@ -1,0 +1,15 @@
+# Example target file in yaml format
+---
+PROTOCOL: https
+IP: 1.2.3.4
+USER: hranuser11
+PASS: system123
+HOST_USERNAME: hranuser11
+HOST_PASSWORD: system123
+env:
+  parameters:
+    external_networks:
+      ext0: cae23478-8bc7-48ee-946f-cd86ebb799f1
+    ntp_servers: 10.20.110.16,10.20.110.17,10.171.8.4
+    number_of_ips:
+      ext0_ips: 2
