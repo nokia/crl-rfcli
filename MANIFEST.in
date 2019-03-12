@@ -1,0 +1,7 @@
+include tox.ini
+include tests/*.py
+recursive-include tests *.py *.robot *.ini
+include .pylintrc
+include .coveragerc
+recursive-include sphinxdocs *
+recursive-include robottests *.py *.robot *.ini *.yaml
