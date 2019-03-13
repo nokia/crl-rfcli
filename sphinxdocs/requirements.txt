@@ -1,2 +1,1 @@
-sphinx-invoke
-sphinxcontrib-napoleon
+sphinx-argparse
