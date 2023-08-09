@@ -11,7 +11,6 @@ import socket
 import getpass
 import textwrap
 from distutils import spawn
-from pathlib import Path
 import yaml
 from robot import run_cli
 from crl.rfcli._version import get_version
@@ -42,10 +41,7 @@ class RobotCommand():
         if self.debug:
             print(f"Environment: {self.full_environment}")
             print(f"Commandline: {self.commandline}")
-        if 'robot' not in sys.modules:
-            robot_dir = Path(__file__).absolute().parent    # zipsafe
-            sys.path = [str(robot_dir.parent)] + [p for p in sys.path if Path(p) != robot_dir]
-        return run_cli(self.commandline[1:], exit=False)
+        return run_cli(self.commandline[1:], exit=False)  # pylint: disable=unsubscriptable-object
 
     @staticmethod
     def _check_for_exec(exec_name):
