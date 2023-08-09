@@ -262,7 +262,6 @@ class RobotRunner():
                 self.calldir, 'resources')] + testcase_libs
         return {'PYTHONPATH': os.pathsep.join(path_list)}
 
-#@dataclasses.dataclass
 class IniParser():
     def __init__(self, absfilename):
         self.parser = ConfigParser.ConfigParser()
