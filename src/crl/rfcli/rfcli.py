@@ -22,7 +22,7 @@ from crl.threadverify import (  # pylint: disable=import-error
 __copyright__ = 'Copyright (C) 2019, Nokia'
 
 
-class RobotCommand():
+class RobotCommand:
 
     def __init__(self, options=None, args=None, new_environment_variables=None, debug=False):
         self.options = options
@@ -149,7 +149,7 @@ class JybotCommand(RobotCommand):
             '--listener', 'crl.threadverify.ThreadListener'] + self.options + self.args
 
 
-class RobotRunner():
+class RobotRunner:
 
     def __init__(self):
 
@@ -194,6 +194,7 @@ class RobotRunner():
         if self.rfcli_args.enable_jybot:
             if RobotCommand.is_jybot_installed():
                 return True
+            raise ValueError("Jybot is not installed.")
         return False
 
     def run(self):
@@ -214,8 +215,8 @@ class RobotRunner():
             return command.execute()
         finally:
             if self.output_under_public_html:
-                print(f"HTML logs might be located at: http://%s/~%s/rfcli/log.html"
-                      f" {socket.getfqdn(), self._user_dir_property()}")
+                print(f"HTML logs might be located at: http://{socket.getfqdn()}/~{self._user_dir_property()}"
+                      f"/rfcli/log.html")
 
     @staticmethod
     def _user_dir_property():
@@ -258,7 +259,7 @@ class RobotRunner():
                 self.calldir, 'resources')] + testcase_libs
         return {'PYTHONPATH': os.pathsep.join(path_list)}
 
-class IniParser():
+class IniParser:
     def __init__(self, absfilename):
         self.parser = ConfigParser.ConfigParser()
         self.parser.optionxform = str
@@ -286,7 +287,7 @@ class IniParser():
             return options
 
 
-class YamlParser():
+class YamlParser:
     def __init__(self, absfilename):
         self.absfilename = absfilename
 
@@ -311,7 +312,7 @@ class YamlParser():
             return options
 
 
-class TargetHandler():
+class TargetHandler:
     def __init__(self, target_spec):
         self._absfilename = None
         self._extension = None
