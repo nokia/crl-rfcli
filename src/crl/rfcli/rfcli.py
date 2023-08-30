@@ -1,6 +1,7 @@
 from __future__ import print_function
 import sys
 import argparse
+import fnmatch
 try:
     import ConfigParser
 except ImportError:
@@ -41,6 +42,12 @@ class RobotCommand:
         if self.debug:
             print(f"Environment: {self.full_environment}")
             print(f"Commandline: {self.commandline}")
+        # pylint: disable=unused-variable
+        for key, value in self.new_environment_variables.items():
+            newpaths = value.split(os.pathsep)
+            for path in newpaths:
+                if not any(fnmatch.fnmatch(p, path) for p in sys.path):
+                    sys.path.append(path)
         return run_cli(self.commandline[1:], exit=False)  # pylint: disable=unsubscriptable-object
 
     @staticmethod
@@ -194,7 +201,8 @@ class RobotRunner:
         if self.rfcli_args.enable_jybot:
             if RobotCommand.is_jybot_installed():
                 return True
-            raise ValueError("Jybot is not installed.")
+            else:
+                raise Exception("Jybot is not installed.")
         return False
 
     def run(self):
@@ -215,8 +223,8 @@ class RobotRunner:
             return command.execute()
         finally:
             if self.output_under_public_html:
-                print(f"HTML logs might be located at: http://{socket.getfqdn()}/~{self._user_dir_property()}"
-                      f"/rfcli/log.html")
+                print(f"HTML logs might be located at: http://%s/~%s/rfcli/log.html"
+                      f" {socket.getfqdn(), self._user_dir_property()}")
 
     @staticmethod
     def _user_dir_property():
@@ -277,14 +285,15 @@ class IniParser:
 
     def get_variables(self):
         options = []
-        print(self.absfilename)
-        with open(self.absfilename, "r", encoding="utf8") as file:
-            self.parser.read_file(file)
-            for key, value in self.parser.items('target'):
-                variables = self.get_nested_variables([], key, value)
-                for item in variables:
-                    options.append(item)
-            return options
+        try:
+            self.parser.read_file(open(self.absfilename))  # pylint:disable=deprecated-method
+        except Exception as e:
+            raise Exception("Cannot open target ini file %s: %s" % (self.absfilename, e))
+        if not self.parser.has_section('target'):
+            raise Exception("Target ini file %s does not have the [target] section" % self.absfilename)
+        for key, value in self.parser.items('target'):
+            options.append((key, value))
+        return options
 
 
 class YamlParser:
@@ -303,13 +312,15 @@ class YamlParser:
 
     def get_variables(self):
         options = []
-        with open(self.absfilename, "r", encoding="utf8") as file:
-            config = yaml.load(file, Loader=yaml.FullLoader)
-            for key, value in config.items():
-                variables = self.get_nested_variables([], key, value)
-                for item in variables:
-                    options.append(item)
-            return options
+        try:
+            config = yaml.load(open(self.absfilename))
+        except Exception as e:
+            raise Exception("Cannot open target yaml file %s: %s" % (self.absfilename, e))
+        for key, value in config.items():
+            variables = self.get_nested_variables([], key, value)
+            for item in variables:
+                options.append(item)
+        return options
 
 
 class TargetHandler:
@@ -323,7 +334,7 @@ class TargetHandler:
     def extension(self):
         if self._extension is not None:
             return self._extension
-        raise ValueError("The extension property was not initialized")
+        raise Exception("The extension property was not initialized")
 
     def initialize(self, target_spec):
         if self.target_file_exists(target_spec, '.ini'):
@@ -331,7 +342,7 @@ class TargetHandler:
         elif self.target_file_exists(target_spec, '.yaml'):
             self.initialize_yaml(target_spec)
         else:
-            raise ValueError(f"Target file {target_spec} does not exist")
+            raise Exception(f"Target file {target_spec} does not exist")
 
     def initialize_ini(self, target_spec):
         self._extension = '.ini'
