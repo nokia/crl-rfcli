@@ -313,7 +313,7 @@ class YamlParser:
     def get_variables(self):
         options = []
         try:
-            config = yaml.load(file, Loader=yaml.FullLoader)
+            config = yaml.safe_load(open(self.absfilename))
         except Exception as e:
             raise Exception("Cannot open target yaml file %s: %s" % (self.absfilename, e))
         for key, value in config.items():
