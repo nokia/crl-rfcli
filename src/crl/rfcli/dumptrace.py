@@ -1,11 +1,10 @@
-from __future__ import print_function
 from functools import partial
 import sys
 import threading
 import inspect
 
 
-__copyright__ = 'Copyright (C) 2019, Nokia'
+__copyright__ = 'Copyright (C) 2019-2024, Nokia'
 
 
 def whatever_io():
