@@ -1,10 +1,6 @@
-from __future__ import print_function
 import sys
 import argparse
-try:
-    import ConfigParser
-except ImportError:
-    import configparser as ConfigParser
+import configparser
 import os
 import re
 import socket
@@ -21,7 +17,7 @@ from crl.threadverify import (  # pylint: disable=import-error
     ThreadVerificationFailed)
 
 
-__copyright__ = 'Copyright (C) 2019, Nokia'
+__copyright__ = 'Copyright (C) 2019-2024, Nokia'
 
 
 class RobotCommand(object):
@@ -271,7 +267,7 @@ class RobotRunner(object):
 
 class IniParser(object):
     def __init__(self, absfilename):
-        self.parser = ConfigParser.ConfigParser()
+        self.parser = configparser.ConfigParser()
         self.parser.optionxform = str
         self.absfilename = absfilename
 
