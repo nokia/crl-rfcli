@@ -1,6 +1,7 @@
 from __future__ import print_function
 import sys
 import argparse
+import fnmatch
 try:
     import ConfigParser
 except ImportError:
@@ -12,9 +13,7 @@ import getpass
 import textwrap
 from distutils import spawn
 import yaml
-from robot import (
-    run_cli,
-    pythonpathsetter)
+from robot import run_cli
 from crl.rfcli._version import get_version
 from crl.threadverify import (  # pylint: disable=import-error
     verify_no_new_threads_at_end,
@@ -24,7 +23,7 @@ from crl.threadverify import (  # pylint: disable=import-error
 __copyright__ = 'Copyright (C) 2019, Nokia'
 
 
-class RobotCommand(object):
+class RobotCommand:
 
     def __init__(self, options=None, args=None, new_environment_variables=None, debug=False):
         self.options = options
@@ -41,18 +40,19 @@ class RobotCommand(object):
 
     def execute(self):
         if self.debug:
-            print("Environment: %s" % self.full_environment)
-            print("Commandline: %s" % self.commandline)
+            print(f"Environment: {self.full_environment}")
+            print(f"Commandline: {self.commandline}")
         # pylint: disable=unused-variable
         for key, value in self.new_environment_variables.items():
             newpaths = value.split(os.pathsep)
             for path in newpaths:
-                pythonpathsetter.add_path(path, True)
+                if not any(fnmatch.fnmatch(p, path) for p in sys.path):
+                    sys.path.append(path)
         return run_cli(self.commandline[1:], exit=False)  # pylint: disable=unsubscriptable-object
 
     @staticmethod
     def _check_for_exec(exec_name):
-        return True if spawn.find_executable(exec_name) else False
+        return spawn.find_executable(exec_name)
 
     @staticmethod
     def build_environment(variables):
@@ -93,7 +93,7 @@ class RobotCommand(object):
             usage='rfcli [RFCLI OPTIONS] [PYBOT OPTIONS AND ARGUMENTS]',
             formatter_class=argparse.RawTextHelpFormatter)
         parser.add_argument(
-            '--version', action='version', version='rfcli %s' % get_version())
+            '--version', action='version', version=f'rfcli {get_version()}')
         parser.add_argument(
             '--rfcli-output', dest='output',
             help=textwrap.fill(
@@ -143,7 +143,7 @@ class RobotCommand(object):
 class PybotCommand(RobotCommand):
 
     def __init__(self, options=None, args=None, new_environment_variables=None, debug=False):
-        super(PybotCommand, self).__init__(options, args, new_environment_variables, debug)
+        super().__init__(options, args, new_environment_variables, debug)
         self.commandline = ['pybot'] + [
             '--listener', 'crl.threadverify.ThreadListener'] + self.options + self.args
 
@@ -151,12 +151,12 @@ class PybotCommand(RobotCommand):
 class JybotCommand(RobotCommand):
 
     def __init__(self, options=None, args=None, new_environment_variables=None, debug=False):
-        super(JybotCommand, self).__init__(options, args, new_environment_variables, debug)
+        super().__init__(options, args, new_environment_variables, debug)
         self.commandline = ['jybot'] + [
             '--listener', 'crl.threadverify.ThreadListener'] + self.options + self.args
 
 
-class RobotRunner(object):
+class RobotRunner:
 
     def __init__(self):
 
@@ -170,7 +170,7 @@ class RobotRunner(object):
     def parse_args(self):
         self.rfcli_args, self.robot_args = self.parser.parse_known_args()
         self.remove_extra_nostatusrc_flags()
-        self.help_only = True if self.rfcli_args.help or (len(self.robot_args) < 1) else False
+        self.help_only = self.rfcli_args.help or (len(self.robot_args) < 1)
 
     def remove_extra_nostatusrc_flags(self):
         """
@@ -189,7 +189,7 @@ class RobotRunner(object):
         default_html_output_dir = os.path.join(os.path.expanduser('~'), 'public_html', 'rfcli')
         if self.rfcli_args.output:
             return self.rfcli_args.output
-        elif os.path.exists(default_html_output_dir):
+        if os.path.exists(default_html_output_dir):
             return default_html_output_dir
         return 'rfcli_output'
 
@@ -223,8 +223,8 @@ class RobotRunner(object):
             return command.execute()
         finally:
             if self.output_under_public_html:
-                print('HTML logs might be located at: http://%s/~%s/rfcli/log.html' % (
-                    socket.getfqdn(), self._user_dir_property()))
+                print(f"HTML logs might be located at: http://%s/~%s/rfcli/log.html"
+                      f" {socket.getfqdn(), self._user_dir_property()}")
 
     @staticmethod
     def _user_dir_property():
@@ -241,12 +241,11 @@ class RobotRunner(object):
                 handler = TargetHandler(name)
                 # only target ini file name without path
                 robot_options.append('--variable')
-                robot_options.append('RFCLI_TARGET_%s:%s' % (
-                    i, filename.replace(handler.extension, "")))  # to test
+                robot_options.append(f'RFCLI_TARGET_{i}:{filename.replace(handler.extension, "")}')  # to test
                 parsed_options = handler.get_variables()
                 for key, value in parsed_options:
                     robot_options.append('--variable')
-                    robot_options.append('RFCLI_TARGET_%s.%s:%s' % (i, key, value))
+                    robot_options.append(f'RFCLI_TARGET_{i}.{key}:{value}')
         robot_options.append('-d')
         robot_options.append(self.output_directory)
         robot_options.append('-b')
@@ -268,17 +267,26 @@ class RobotRunner(object):
                 self.calldir, 'resources')] + testcase_libs
         return {'PYTHONPATH': os.pathsep.join(path_list)}
 
-
-class IniParser(object):
+class IniParser:
     def __init__(self, absfilename):
         self.parser = ConfigParser.ConfigParser()
         self.parser.optionxform = str
         self.absfilename = absfilename
 
+    def get_nested_variables(self, variables, key, value):
+        if not isinstance(value, dict):
+            variables.append((key, value))
+        else:
+            for k, v in value.items():
+                new_key = f'{key}.{k}'
+                new_value = v
+                variables = self.get_nested_variables(variables, new_key, new_value)
+        return variables
+
     def get_variables(self):
         options = []
         try:
-            self.parser.readfp(open(self.absfilename))  # pylint:disable=deprecated-method
+            self.parser.read_file(open(self.absfilename))  # pylint:disable=deprecated-method
         except Exception as e:
             raise Exception("Cannot open target ini file %s: %s" % (self.absfilename, e))
         if not self.parser.has_section('target'):
@@ -288,7 +296,7 @@ class IniParser(object):
         return options
 
 
-class YamlParser(object):
+class YamlParser:
     def __init__(self, absfilename):
         self.absfilename = absfilename
 
@@ -297,7 +305,7 @@ class YamlParser(object):
             variables.append((key, value))
         else:
             for k, v in value.items():
-                new_key = '%s.%s' % (key, k)
+                new_key = f'{key}.{k}'
                 new_value = v
                 variables = self.get_nested_variables(variables, new_key, new_value)
         return variables
@@ -305,7 +313,7 @@ class YamlParser(object):
     def get_variables(self):
         options = []
         try:
-            config = yaml.load(open(self.absfilename))
+            config = yaml.safe_load(open(self.absfilename))
         except Exception as e:
             raise Exception("Cannot open target yaml file %s: %s" % (self.absfilename, e))
         for key, value in config.items():
@@ -315,7 +323,7 @@ class YamlParser(object):
         return options
 
 
-class TargetHandler(object):
+class TargetHandler:
     def __init__(self, target_spec):
         self._absfilename = None
         self._extension = None
@@ -326,8 +334,7 @@ class TargetHandler(object):
     def extension(self):
         if self._extension is not None:
             return self._extension
-        else:
-            raise Exception("The extension property was not initialized")
+        raise Exception("The extension property was not initialized")
 
     def initialize(self, target_spec):
         if self.target_file_exists(target_spec, '.ini'):
@@ -335,7 +342,7 @@ class TargetHandler(object):
         elif self.target_file_exists(target_spec, '.yaml'):
             self.initialize_yaml(target_spec)
         else:
-            raise Exception("Target file %s does not exist" % target_spec)
+            raise Exception(f"Target file {target_spec} does not exist")
 
     def initialize_ini(self, target_spec):
         self._extension = '.ini'
@@ -392,7 +399,7 @@ def main():
     except ThreadVerificationFailed:
         print('FAILED: at least one test thread is still running.')
         sys.stdout.flush()
-        os._exit(1)
+        os._exit(os.EX_OSERR)
 
 
 if __name__ == "__main__":
