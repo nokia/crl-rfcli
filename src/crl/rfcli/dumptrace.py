@@ -11,7 +11,7 @@ def whatever_io():
     return sys.stdout
 
 
-class DumpTrace(object):
+class DumpTrace:
     """Dump stacktrace of all saved active threads to *out*.
     The ideas are based on https://gist.github.com/737056."""
 
@@ -49,7 +49,7 @@ class DumpTrace(object):
         self.dprint('')
 
     def _dump_thread(self, thread, frame):
-        self.dprint('{0.name}'.format(thread))
+        self.dprint(f'{thread.name}')
         self.dprint(self.sep)
         self._dump_backtrace(frame)
 
@@ -71,14 +71,9 @@ class DumpTrace(object):
         return s.strip('\n\r\t ')
 
     def _dump_frame_locals(self, frame, indent=6):
-        self.dprint('{}local variables:'.format(' ' * indent))
+        self.dprint(f"{'':<{indent}}local variables:")
         for n, v in frame.f_locals.items():
             try:
-                self.dprint("{indent}'{n}': {v}".format(
-                    indent=' ' * (indent + 2), n=n, v=repr(v)))
+                self.dprint(f"{'':<{indent}}  '{n}': {v!r}")
             except AttributeError as e:
-                self.dprint(
-                    "{indent}skipping variable value of '{n}' :{e}".format(
-                        indent=' ' * (indent + 2),
-                        n=n,
-                        e=e))
+                self.dprint(f"{'':<{indent}}  skipping variable value of '{n}' :{e}")
