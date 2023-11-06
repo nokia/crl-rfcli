@@ -6,7 +6,7 @@ __copyright__ = 'Copyright (C) 2019, Nokia'
 
 class _ThreadHanger(threading.Thread):
     def __init__(self):
-        super(_ThreadHanger, self).__init__(target=self.run, name='HangingThread')
+        super().__init__(target=self.run, name='HangingThread')
         self.keeprunning = None
         self.started = False
 
@@ -24,7 +24,7 @@ class _ThreadHanger(threading.Thread):
 
     def start(self):
         self.keeprunning = True
-        super(_ThreadHanger, self).start()
+        super().start()
 
     @staticmethod
     def stop():
@@ -34,7 +34,7 @@ class _ThreadHanger(threading.Thread):
                 t.join()
 
 
-class ThreadHanger(object):
+class ThreadHanger:
     def __init__(self):
         self._threadhanger = _ThreadHanger()
 

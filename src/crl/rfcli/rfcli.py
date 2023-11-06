@@ -1,7 +1,6 @@
 from __future__ import print_function
 import sys
 import argparse
-import fnmatch
 try:
     import ConfigParser
 except ImportError:
@@ -13,7 +12,9 @@ import getpass
 import textwrap
 from distutils import spawn
 import yaml
-from robot import run_cli
+from robot import (
+    run_cli,
+    pythonpathsetter)
 from crl.rfcli._version import get_version
 from crl.threadverify import (  # pylint: disable=import-error
     verify_no_new_threads_at_end,
@@ -46,13 +47,12 @@ class RobotCommand:
         for key, value in self.new_environment_variables.items():
             newpaths = value.split(os.pathsep)
             for path in newpaths:
-                if not any(fnmatch.fnmatch(p, path) for p in sys.path):
-                    sys.path.append(path)
+                pythonpathsetter.add_path(path, True)
         return run_cli(self.commandline[1:], exit=False)  # pylint: disable=unsubscriptable-object
 
     @staticmethod
     def _check_for_exec(exec_name):
-        return spawn.find_executable(exec_name)
+        return bool(spawn.find_executable(exec_name))
 
     @staticmethod
     def build_environment(variables):
@@ -170,7 +170,7 @@ class RobotRunner:
     def parse_args(self):
         self.rfcli_args, self.robot_args = self.parser.parse_known_args()
         self.remove_extra_nostatusrc_flags()
-        self.help_only = self.rfcli_args.help or (len(self.robot_args) < 1)
+        self.help_only = bool(self.rfcli_args.help or (len(self.robot_args) < 1))
 
     def remove_extra_nostatusrc_flags(self):
         """
@@ -201,8 +201,7 @@ class RobotRunner:
         if self.rfcli_args.enable_jybot:
             if RobotCommand.is_jybot_installed():
                 return True
-            else:
-                raise Exception("Jybot is not installed.")
+            raise ValueError("Jybot is not installed.")
         return False
 
     def run(self):
@@ -223,8 +222,8 @@ class RobotRunner:
             return command.execute()
         finally:
             if self.output_under_public_html:
-                print(f"HTML logs might be located at: http://%s/~%s/rfcli/log.html"
-                      f" {socket.getfqdn(), self._user_dir_property()}")
+                print(f'HTML logs might be located at: '
+                      f'http://{socket.getfqdn()}/~{self._user_dir_property()}/rfcli/log.html')
 
     @staticmethod
     def _user_dir_property():
@@ -267,30 +266,22 @@ class RobotRunner:
                 self.calldir, 'resources')] + testcase_libs
         return {'PYTHONPATH': os.pathsep.join(path_list)}
 
+
 class IniParser:
     def __init__(self, absfilename):
         self.parser = ConfigParser.ConfigParser()
         self.parser.optionxform = str
         self.absfilename = absfilename
 
-    def get_nested_variables(self, variables, key, value):
-        if not isinstance(value, dict):
-            variables.append((key, value))
-        else:
-            for k, v in value.items():
-                new_key = f'{key}.{k}'
-                new_value = v
-                variables = self.get_nested_variables(variables, new_key, new_value)
-        return variables
-
     def get_variables(self):
         options = []
         try:
-            self.parser.read_file(open(self.absfilename))  # pylint:disable=deprecated-method
+            with open(self.absfilename) as f:  # pylint:disable=unspecified-encoding
+                self.parser.readfp(f)  # pylint:disable=deprecated-method
         except Exception as e:
-            raise Exception("Cannot open target ini file %s: %s" % (self.absfilename, e))
+            raise ValueError(f"Cannot open target ini file {self.absfilename}: e") from e
         if not self.parser.has_section('target'):
-            raise Exception("Target ini file %s does not have the [target] section" % self.absfilename)
+            raise ValueError(f"Target ini file {self.absfilename} does not have the [target] section")
         for key, value in self.parser.items('target'):
             options.append((key, value))
         return options
@@ -313,9 +304,10 @@ class YamlParser:
     def get_variables(self):
         options = []
         try:
-            config = yaml.safe_load(open(self.absfilename))
+            with open(self.absfilename) as stream:  # pylint:disable=unspecified-encoding
+                config = yaml.safe_load(stream)
         except Exception as e:
-            raise Exception("Cannot open target yaml file %s: %s" % (self.absfilename, e))
+            raise ValueError(f"Cannot open target yaml file {self.absfilename}") from e
         for key, value in config.items():
             variables = self.get_nested_variables([], key, value)
             for item in variables:
@@ -334,7 +326,7 @@ class TargetHandler:
     def extension(self):
         if self._extension is not None:
             return self._extension
-        raise Exception("The extension property was not initialized")
+        raise AttributeError("The extension property was not initialized")
 
     def initialize(self, target_spec):
         if self.target_file_exists(target_spec, '.ini'):
@@ -342,7 +334,7 @@ class TargetHandler:
         elif self.target_file_exists(target_spec, '.yaml'):
             self.initialize_yaml(target_spec)
         else:
-            raise Exception(f"Target file {target_spec} does not exist")
+            raise ValueError(f"Target file {target_spec} does not exist")
 
     def initialize_ini(self, target_spec):
         self._extension = '.ini'
@@ -399,7 +391,7 @@ def main():
     except ThreadVerificationFailed:
         print('FAILED: at least one test thread is still running.')
         sys.stdout.flush()
-        os._exit(os.EX_OSERR)
+        os._exit(1)
 
 
 if __name__ == "__main__":
