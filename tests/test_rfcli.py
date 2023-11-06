@@ -7,11 +7,11 @@ import mock
 from crl.rfcli.rfcli import TargetHandler, main
 
 
-__copyright__ = 'Copyright (C) 2019, Nokia'
+__copyright__ = 'Copyright (C) 2019-2024, Nokia'
 
 
 def get_cwd():
-    from os import getcwd
+    from os import getcwd    # pylint: disable=import-outside-toplevel
     return getcwd()
 
 
@@ -99,6 +99,12 @@ class TestRfcliHelpers(unittest.TestCase):
                 osi_path('/home/fedora/gitlab/crl-rfcli/src/alma.ini')),
             osi_path('/home/fedora/gitlab/crl-rfcli/src/alma.ini'))
 
+    def test_rfcli_dummy(self):
+        with subprocess.Popen(f"rfcli --test Dummy {self.testdir}",
+                              shell=True, stdout=subprocess.PIPE) as pro:
+            self.assertIn(b'Dummy', pro.communicate()[0])
+            self.assertEqual(pro.returncode, 0)
+
     @mock.patch('crl.rfcli.rfcli.run_cli',
                 side_effect=lambda *args, **kwargs: [sys.exit(0), exit])
     def test_main(self, mock_run_cli):
@@ -110,13 +116,6 @@ class TestRfcliHelpers(unittest.TestCase):
             '--listener', 'crl.threadverify.ThreadListener',
             '-d', 'rfcli_output', '-b', 'debug.txt',
             '--loglevel', 'TRACE:INFO', '--nostatusrc', 'test'], exit=False)
-
-    def test_rfcli_dummy(self):
-        pro = subprocess.Popen(
-            "rfcli --test Dummy {}".format(self.testdir),
-            shell=True, stdout=subprocess.PIPE)
-        self.assertIn(b'Dummy', pro.communicate()[0])
-        self.assertEqual(pro.returncode, 0)
 
 
 if __name__ == '__main__':

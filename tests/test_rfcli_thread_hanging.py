@@ -13,7 +13,7 @@ except ImportError:
     from io import StringIO as TestIO
 
 
-__copyright__ = 'Copyright (C) 2019, Nokia'
+__copyright__ = 'Copyright (C) 2019-2024, Nokia'
 
 
 class TestThreadHanging(unittest.TestCase):
@@ -38,8 +38,8 @@ class TestThreadHanging(unittest.TestCase):
     def test_rfcli_with_hanging_threads(self, mock_os_exit):
         self.testdir = os.path.dirname(__file__)
         with self.threadcleaner():
-            pro = subprocess.Popen(
-                'rfcli --test "Hang Threads" {}'.format(self.testdir),
+            pro = subprocess.Popen(  # pylint: disable=consider-using-with
+                f'rfcli --test "Hang Threads" {self.testdir}',
                 shell=True, stdout=subprocess.PIPE)
             self._verify_hanging_out(pro.communicate()[0])
             self.assertEqual(pro.returncode, 1)
