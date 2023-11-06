@@ -1,5 +1,5 @@
 import os
-import imp
+import importlib
 from setuptools import setup, find_packages
 
 
@@ -10,8 +10,15 @@ VERSIONFILE = os.path.join(
     'src', 'crl', 'rfcli', '_version.py')
 
 
+def import_module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def get_version():
-    return imp.load_source('_version', VERSIONFILE).get_version()
+    return import_module("_version", VERSIONFILE).get_version()
 
 
 def read(fname):
