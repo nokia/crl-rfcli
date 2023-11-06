@@ -11,9 +11,10 @@ import socket
 import getpass
 import textwrap
 from distutils import spawn
-from pathlib import Path
 import yaml
-from robot import run_cli
+from robot import (
+    run_cli,
+    pythonpathsetter)
 from crl.rfcli._version import get_version
 from crl.threadverify import (  # pylint: disable=import-error
     verify_no_new_threads_at_end,
@@ -23,7 +24,7 @@ from crl.threadverify import (  # pylint: disable=import-error
 __copyright__ = 'Copyright (C) 2019, Nokia'
 
 
-class RobotCommand():
+class RobotCommand:
 
     def __init__(self, options=None, args=None, new_environment_variables=None, debug=False):
         self.options = options
@@ -42,14 +43,16 @@ class RobotCommand():
         if self.debug:
             print(f"Environment: {self.full_environment}")
             print(f"Commandline: {self.commandline}")
-        if 'robot' not in sys.modules:
-            robot_dir = Path(__file__).absolute().parent    # zipsafe
-            sys.path = [str(robot_dir.parent)] + [p for p in sys.path if Path(p) != robot_dir]
-        return run_cli(self.commandline[1:], exit=False)
+        # pylint: disable=unused-variable
+        for key, value in self.new_environment_variables.items():
+            newpaths = value.split(os.pathsep)
+            for path in newpaths:
+                pythonpathsetter.add_path(path, True)
+        return run_cli(self.commandline[1:], exit=False)  # pylint: disable=unsubscriptable-object
 
     @staticmethod
     def _check_for_exec(exec_name):
-        return spawn.find_executable(exec_name)
+        return bool(spawn.find_executable(exec_name))
 
     @staticmethod
     def build_environment(variables):
@@ -153,7 +156,7 @@ class JybotCommand(RobotCommand):
             '--listener', 'crl.threadverify.ThreadListener'] + self.options + self.args
 
 
-class RobotRunner():
+class RobotRunner:
 
     def __init__(self):
 
@@ -167,7 +170,7 @@ class RobotRunner():
     def parse_args(self):
         self.rfcli_args, self.robot_args = self.parser.parse_known_args()
         self.remove_extra_nostatusrc_flags()
-        self.help_only = self.rfcli_args.help or (len(self.robot_args) < 1)
+        self.help_only = bool(self.rfcli_args.help or (len(self.robot_args) < 1))
 
     def remove_extra_nostatusrc_flags(self):
         """
@@ -198,6 +201,7 @@ class RobotRunner():
         if self.rfcli_args.enable_jybot:
             if RobotCommand.is_jybot_installed():
                 return True
+            raise ValueError("Jybot is not installed.")
         return False
 
     def run(self):
@@ -218,8 +222,8 @@ class RobotRunner():
             return command.execute()
         finally:
             if self.output_under_public_html:
-                print(f"HTML logs might be located at: http://%s/~%s/rfcli/log.html"
-                      f" {socket.getfqdn(), self._user_dir_property()}")
+                print(f'HTML logs might be located at: '
+                      f'http://{socket.getfqdn()}/~{self._user_dir_property()}/rfcli/log.html')
 
     @staticmethod
     def _user_dir_property():
@@ -262,35 +266,28 @@ class RobotRunner():
                 self.calldir, 'resources')] + testcase_libs
         return {'PYTHONPATH': os.pathsep.join(path_list)}
 
-class IniParser():
+
+class IniParser:
     def __init__(self, absfilename):
         self.parser = ConfigParser.ConfigParser()
         self.parser.optionxform = str
         self.absfilename = absfilename
 
-    def get_nested_variables(self, variables, key, value):
-        if not isinstance(value, dict):
-            variables.append((key, value))
-        else:
-            for k, v in value.items():
-                new_key = f'{key}.{k}'
-                new_value = v
-                variables = self.get_nested_variables(variables, new_key, new_value)
-        return variables
-
     def get_variables(self):
         options = []
-        print(self.absfilename)
-        with open(self.absfilename, "r", encoding="utf8") as file:
-            self.parser.read_file(file)
-            for key, value in self.parser.items('target'):
-                variables = self.get_nested_variables([], key, value)
-                for item in variables:
-                    options.append(item)
-            return options
+        try:
+            with open(self.absfilename) as f:  # pylint:disable=unspecified-encoding
+                self.parser.readfp(f)  # pylint:disable=deprecated-method
+        except Exception as e:
+            raise ValueError(f"Cannot open target ini file {self.absfilename}: e") from e
+        if not self.parser.has_section('target'):
+            raise ValueError(f"Target ini file {self.absfilename} does not have the [target] section")
+        for key, value in self.parser.items('target'):
+            options.append((key, value))
+        return options
 
 
-class YamlParser():
+class YamlParser:
     def __init__(self, absfilename):
         self.absfilename = absfilename
 
@@ -306,16 +303,19 @@ class YamlParser():
 
     def get_variables(self):
         options = []
-        with open(self.absfilename, "r", encoding="utf8") as file:
-            config = yaml.load(file, Loader=yaml.FullLoader)
-            for key, value in config.items():
-                variables = self.get_nested_variables([], key, value)
-                for item in variables:
-                    options.append(item)
-            return options
+        try:
+            with open(self.absfilename) as stream:  # pylint:disable=unspecified-encoding
+                config = yaml.safe_load(stream)
+        except Exception as e:
+            raise ValueError(f"Cannot open target yaml file {self.absfilename}") from e
+        for key, value in config.items():
+            variables = self.get_nested_variables([], key, value)
+            for item in variables:
+                options.append(item)
+        return options
 
 
-class TargetHandler():
+class TargetHandler:
     def __init__(self, target_spec):
         self._absfilename = None
         self._extension = None
@@ -326,7 +326,7 @@ class TargetHandler():
     def extension(self):
         if self._extension is not None:
             return self._extension
-        raise ValueError("The extension property was not initialized")
+        raise AttributeError("The extension property was not initialized")
 
     def initialize(self, target_spec):
         if self.target_file_exists(target_spec, '.ini'):
@@ -391,7 +391,7 @@ def main():
     except ThreadVerificationFailed:
         print('FAILED: at least one test thread is still running.')
         sys.stdout.flush()
-        os._exit(os.EX_OSERR)
+        os._exit(1)
 
 
 if __name__ == "__main__":
