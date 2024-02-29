@@ -1,11 +1,12 @@
 import os
+import re
 import shutil
 from xml.etree import ElementTree
 import pytest
 from temp_utils.contextmanagers import chdir
 
 
-__copyright__ = 'Copyright (C) 2019, Nokia'
+__copyright__ = 'Copyright (C) 2019-2024, Nokia'
 
 THISDIR = os.path.dirname(__file__)
 ROBOTEXAMPLE = os.path.join(THISDIR, 'robotexample')
@@ -42,7 +43,8 @@ def test_pythonpath(clean_pythonpath_run):
 def test_no_pythonpath(clean_pythonpath_run):
     ret = clean_pythonpath_run('rfcli', '--rfcli-no-pythonpath', '-t', 'example', 'testcases')
     assert ret.success, (ret.stdout, ret.stderr)
-    assert "Importing test library 'example' failed" in _errors()
+    # error message changed in Robot 5.x
+    assert re.search("Importing( test)? library 'example' failed", _errors()) is not None
 
 
 def test_no_pythonpath_help(script_runner):
