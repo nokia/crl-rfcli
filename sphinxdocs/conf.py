@@ -48,7 +48,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'crl.rfcli'
-copyright = u'2019, Nokia'
+copyright = u'Copyright (C) 2019-2024, Nokia'
 
 author = u'Krisztina Ylinen'
 
@@ -66,7 +66,7 @@ release = version
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
