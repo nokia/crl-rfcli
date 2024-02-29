@@ -1,15 +1,14 @@
 import sys
 import argparse
 import configparser
+import fnmatch
 import os
 import re
 import socket
 import getpass
 import textwrap
 import yaml
-from robot import (
-    run_cli,
-    pythonpathsetter)
+from robot import run_cli
 from crl.rfcli._version import get_version
 from crl.threadverify import (
     verify_no_new_threads_at_end,
@@ -43,7 +42,8 @@ class RobotCommand:
         for key, value in self.new_environment_variables.items():
             newpaths = value.split(os.pathsep)
             for path in newpaths:
-                pythonpathsetter.add_path(path, True)
+                if not any(fnmatch.fnmatch(p, path) for p in sys.path):
+                    sys.path.append(path)
         return run_cli(self.commandline[1:], exit=False)
 
     @staticmethod
