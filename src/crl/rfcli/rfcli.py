@@ -6,7 +6,6 @@ import re
 import socket
 import getpass
 import textwrap
-from distutils import spawn
 import yaml
 from robot import (
     run_cli,
@@ -28,7 +27,8 @@ class RobotCommand:
         self.debug = debug
         self.new_environment_variables = new_environment_variables
         self.full_environment = RobotCommand.build_environment(self.new_environment_variables)
-        self.commandline = None
+        self.commandline = ['robot'] + [
+            '--listener', 'crl.threadverify.ThreadListener'] + self.options + self.args
 
     def __str__(self):
         for variable in self.new_environment_variables:
@@ -44,11 +44,7 @@ class RobotCommand:
             newpaths = value.split(os.pathsep)
             for path in newpaths:
                 pythonpathsetter.add_path(path, True)
-        return run_cli(self.commandline[1:], exit=False)  # pylint: disable=unsubscriptable-object
-
-    @staticmethod
-    def _check_for_exec(exec_name):
-        return bool(spawn.find_executable(exec_name))
+        return run_cli(self.commandline[1:], exit=False)
 
     @staticmethod
     def build_environment(variables):
@@ -56,10 +52,6 @@ class RobotCommand:
         for key, value in variables.items():
             new_env[key] = value
         return new_env
-
-    @staticmethod
-    def is_jybot_installed():
-        return RobotCommand._check_for_exec('jybot')
 
     @staticmethod
     def wrap_help_text(paragraph_list, width):
@@ -75,18 +67,18 @@ class RobotCommand:
         argwidth = 56
         description_text = [
             'A Robot Framework frontend script. All command line options '
-            'are passed to pybot/jybot, except for ones listed below.\n',
+            'are passed to robot, except for ones listed below.\n',
             'It adds ./libraries and ./resources to PYTHONPATH '
             'so that libraries and resources can easily be '
             'imported in test cases. '
             'Additionally, it will recursively search the ./testcases '
             'directory for any subdirectories named "libraries" or '
             '"resources" and add those to PYTHONPATH.\n',
-            'Use rfcli --help to see pybot/jybot help.']
+            'Use rfcli --help to see robot help.']
         parser = argparse.ArgumentParser(
             description=RobotCommand.wrap_help_text(description_text, mainwidth),
             add_help=False,
-            usage='rfcli [RFCLI OPTIONS] [PYBOT OPTIONS AND ARGUMENTS]',
+            usage='rfcli [RFCLI OPTIONS] [ROBOT OPTIONS AND ARGUMENTS]',
             formatter_class=argparse.RawTextHelpFormatter)
         parser.add_argument(
             '--version', action='version', version=f'rfcli {get_version()}')
@@ -102,11 +94,8 @@ class RobotCommand:
         parser.add_argument(
             '--rfcli-show', dest='show', action='store_true',
             help=textwrap.fill(
-                "Show pybot/jybot command that would be executed, "
+                "Show robot command that would be executed, "
                 "but don't execute it.", width=argwidth))
-        parser.add_argument(
-            '-j', '--jybot', dest='enable_jybot', action='store_true', help="Use jybot "
-            "instead of pybot")
         target_help_text = [
             'Target files can use either INI or YAML formats. '
             'Target can be specified in two ways:',
@@ -134,22 +123,6 @@ class RobotCommand:
             '--rfcli-no-pythonpath', dest='no_pythonpath', action='store_true',
             help='Do not set PYTHONPATH to libraries.')
         return parser
-
-
-class PybotCommand(RobotCommand):
-
-    def __init__(self, options=None, args=None, new_environment_variables=None, debug=False):
-        super().__init__(options, args, new_environment_variables, debug)
-        self.commandline = ['pybot'] + [
-            '--listener', 'crl.threadverify.ThreadListener'] + self.options + self.args
-
-
-class JybotCommand(RobotCommand):
-
-    def __init__(self, options=None, args=None, new_environment_variables=None, debug=False):
-        super().__init__(options, args, new_environment_variables, debug)
-        self.commandline = ['jybot'] + [
-            '--listener', 'crl.threadverify.ThreadListener'] + self.options + self.args
 
 
 class RobotRunner:
@@ -193,23 +166,12 @@ class RobotRunner:
     def output_under_public_html(self):
         return re.search('/public_html/', self.output_directory)
 
-    def use_jybot(self):
-        if self.rfcli_args.enable_jybot:
-            if RobotCommand.is_jybot_installed():
-                return True
-            raise ValueError("Jybot is not installed.")
-        return False
-
     def run(self):
         if self.help_only:
             self.parser.print_help()
             return 0
-        if self.use_jybot():
-            command = JybotCommand(self.get_robot_options(), self.robot_args, self.get_environment(),
-                                   debug=self.rfcli_args.debug)
-        else:
-            command = PybotCommand(self.get_robot_options(), self.robot_args, self.get_environment(),
-                                   debug=self.rfcli_args.debug)
+        command = RobotCommand(self.get_robot_options(), self.robot_args, self.get_environment(),
+                               debug=self.rfcli_args.debug)
         if self.rfcli_args.show:
             print(command)
             return 0
